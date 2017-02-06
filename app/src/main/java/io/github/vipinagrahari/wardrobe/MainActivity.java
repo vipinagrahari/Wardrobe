@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 cloth.setImageUri(Uri.parse(uri));
                 clothes.add(cloth);
             }
-            viewPager.setAdapter(new ViewPagerAdapter(MainActivity.this,clothes));
+            viewPager.setAdapter(new ViewPagerAdapter(getSupportFragmentManager(),MainActivity.this,clothes));
         } catch (SnappydbException e) {
             Toast.makeText(this, "Database Error", Toast.LENGTH_SHORT).show();
         }

@@ -7,7 +7,13 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+
+import com.squareup.picasso.Picasso;
+
+import org.parceler.Parcels;
+
 import butterknife.BindView;
+import butterknife.ButterKnife;
 
 import static io.github.vipinagrahari.wardrobe.Constants.CLOTH;
 
@@ -26,11 +32,15 @@ public class ImageFragment extends Fragment {
   @Override public View onCreateView(LayoutInflater inflater, ViewGroup container,
       Bundle savedInstanceState) {
     // Inflate the layout for this fragment
-    return inflater.inflate(R.layout.fragment_image, container, false);
+    View v=inflater.inflate(R.layout.fragment_image, container, false);
+    ButterKnife.bind(this,v);
+    Picasso.with(getContext()).load(cloth.getImageUri()).resize(400,400).into(imageView);
+    return v;
   }
 
-  public static ImageFragment newInstance() {
+  public static ImageFragment newInstance(Cloth cloth) {
     Bundle args = new Bundle();
+    args.putParcelable(Constants.CLOTH, Parcels.wrap(cloth));
     ImageFragment fragment = new ImageFragment();
     fragment.setArguments(args);
     return fragment;
@@ -39,7 +49,7 @@ public class ImageFragment extends Fragment {
   @Override public void onCreate(@Nullable Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     if (getArguments() != null) {
-      cloth = getArguments().getParcelable(CLOTH);
+      cloth = Parcels.unwrap(getArguments().getParcelable(CLOTH));
     }
   }
 }

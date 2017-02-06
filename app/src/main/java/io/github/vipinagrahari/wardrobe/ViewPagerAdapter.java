@@ -39,7 +39,7 @@ public class ViewPagerAdapter extends FragmentStatePagerAdapter {
     }
 
     @Override public Fragment getItem(int position) {
-        return new ImageFragment();
+        return ImageFragment.newInstance(clothList.get(position));
     }
 
 

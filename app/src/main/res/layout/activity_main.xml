@@ -11,18 +11,20 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:showDividers="middle"
-        android:divider="@color/colorPrimaryDark">
+        android:divider="@android:drawable/divider_horizontal_dark">
 
         <android.support.v4.view.ViewPager
             android:id="@+id/vp_shirt"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="#55AAAAAA"
             android:layout_weight="1" />
 
         <android.support.v4.view.ViewPager
             android:id="@+id/vp_pant"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="#22FA3412"
             android:layout_weight="1"
             />
     </LinearLayout>
