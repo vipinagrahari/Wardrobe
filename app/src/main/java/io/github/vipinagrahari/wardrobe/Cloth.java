@@ -1,10 +1,12 @@
 package io.github.vipinagrahari.wardrobe;
 
 import android.net.Uri;
+import org.parceler.Parcel;
 
 /**
  * Created by vipin on 5/2/17.
  */
+@Parcel
 public class Cloth {
     int id;
     Uri imageUri;

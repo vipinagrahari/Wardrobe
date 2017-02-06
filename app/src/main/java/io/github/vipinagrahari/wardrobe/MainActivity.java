@@ -1,10 +1,16 @@
 package io.github.vipinagrahari.wardrobe;
 
+import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.PersistableBundle;
+import android.os.SystemClock;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.view.GravityCompat;
@@ -69,8 +75,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         ButterKnife.setDebug(true);
         ButterKnife.bind(this);
-        initShirtPager();
-        initPantPager();
+        initPager(vpPant,"pant");
+        initPager(vpShirt,"shirt");
+        scheduleNotification(getNotification("Hey I am Custom Notification"));
     }
 
     @Override
@@ -101,11 +108,10 @@ public class MainActivity extends AppCompatActivity {
         fab.setLayoutParams(layoutParams);
     }
 
-
-    private void initPantPager() {
+    private void initPager(ViewPager viewPager,String tableKey){
         try {
             DB snappydb = DBFactory.open(MainActivity.this,"cloths");
-            String [] keys = snappydb.findKeys("pant");
+            String [] keys = snappydb.findKeys(tableKey);
             List<Cloth> clothes=new ArrayList<>();
             for(String key:keys){
                 String uri=snappydb.get(key);
@@ -113,34 +119,17 @@ public class MainActivity extends AppCompatActivity {
                 cloth.setImageUri(Uri.parse(uri));
                 clothes.add(cloth);
             }
-            vpPant.setAdapter(new ViewPagerAdapter(MainActivity.this,clothes));
+            viewPager.setAdapter(new ViewPagerAdapter(MainActivity.this,clothes));
         } catch (SnappydbException e) {
             Toast.makeText(this, "Database Error", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void initShirtPager() {
-        try {
-            DB snappydb = DBFactory.open(MainActivity.this,"cloths");
-            String [] keys = snappydb.findKeys("shirt");
-            List<Cloth> clothes=new ArrayList<>();
-            for(String key:keys){
-                String uri=snappydb.get(key);
-                Cloth cloth=new Cloth();
-                cloth.setImageUri(Uri.parse(uri));
-                clothes.add(cloth);
-            }
-            vpShirt.setAdapter(new ViewPagerAdapter(MainActivity.this,clothes));
-        } catch (SnappydbException e) {
-            Toast.makeText(this, "Database Error", Toast.LENGTH_SHORT).show();
-        }
-    }
 
     @Override
     public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
         super.onSaveInstanceState(outState, outPersistentState);
     }
-
     private int getOrientation() {
         return MainActivity.this.getResources().getConfiguration().orientation;
     }
@@ -193,6 +182,31 @@ public class MainActivity extends AppCompatActivity {
             }
         }).show();
     }
+
+    private void scheduleNotification(Notification notification) {
+
+        Intent notificationIntent = new Intent(this, NotificationPublisher.class);
+        notificationIntent.putExtra(NotificationPublisher.NOTIFICATION_ID, 1);
+        notificationIntent.putExtra(NotificationPublisher.NOTIFICATION, notification);
+        PendingIntent
+            pendingIntent = PendingIntent.getBroadcast(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        AlarmManager alarmManager = (AlarmManager)getSystemService(Context.ALARM_SERVICE);
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(System.currentTimeMillis());
+        calendar.set(Calendar.HOUR_OF_DAY, 6);
+        alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(),
+            AlarmManager.INTERVAL_DAY, pendingIntent);
+    }
+
+    private Notification getNotification(String content) {
+        Notification.Builder builder = new Notification.Builder(this);
+        builder.setContentTitle("Scheduled Notification");
+        builder.setContentText(content);
+        builder.setSmallIcon(R.mipmap.ic_launcher);
+        return builder.build();
+    }
+
 }
 
 

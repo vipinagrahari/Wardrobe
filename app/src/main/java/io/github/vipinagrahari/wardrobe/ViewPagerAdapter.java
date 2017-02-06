@@ -1,6 +1,12 @@
 package io.github.vipinagrahari.wardrobe;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentStatePagerAdapter;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.view.LayoutInflater;
@@ -16,12 +22,13 @@ import java.util.List;
  * Created by vipin on 5/2/17.
  */
 
-public class ViewPagerAdapter extends PagerAdapter {
+public class ViewPagerAdapter extends FragmentStatePagerAdapter {
 
     private List<Cloth> clothList;
     Context mContext;
 
-    public ViewPagerAdapter(Context context, List<Cloth> clothList) {
+    public ViewPagerAdapter(FragmentManager fm,Context context, List<Cloth> clothList) {
+        super(fm);
         mContext = context;
         this.clothList = clothList;
     }
@@ -31,24 +38,8 @@ public class ViewPagerAdapter extends PagerAdapter {
         return clothList.size();
     }
 
-    @Override
-    public boolean isViewFromObject(View view, Object object) {
-        return view == ((ImageView) object);
-    }
-
-    @Override
-    public Object instantiateItem(ViewGroup container, int position) {
-        View itemView = ((LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE)).inflate(R.layout.item_image, container, false);
-        ImageView imageView = (ImageView) itemView.findViewById(R.id.imageView1);
-        System.out.println("URI"+clothList.get(position).getImageUri().toString());
-        container.addView(itemView);
-        Picasso.with(mContext).load(clothList.get(position).getImageUri()).into(imageView);
-        return imageView;
-    }
-
-    @Override
-    public void destroyItem(ViewGroup container, int position, Object object) {
-        ((ViewPager) container).removeView((ImageView) object);
+    @Override public Fragment getItem(int position) {
+        return new ImageFragment();
     }
 
 
