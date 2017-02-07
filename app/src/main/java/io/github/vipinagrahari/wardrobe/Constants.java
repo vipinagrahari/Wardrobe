@@ -6,5 +6,9 @@ package io.github.vipinagrahari.wardrobe;
 
 public class Constants {
   public static final String CLOTH="cloth";
+  public enum Type{
+    PANT,SHIRT;
+  }
+  public static final String URI ="uri" ;
 
 }

@@ -13,6 +13,7 @@ import android.os.PersistableBundle;
 import android.os.SystemClock;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AlertDialog;
@@ -26,9 +27,6 @@ import android.widget.Toast;
 
 import com.mlsdev.rximagepicker.RxImagePicker;
 import com.mlsdev.rximagepicker.Sources;
-import com.snappydb.DB;
-import com.snappydb.DBFactory;
-import com.snappydb.SnappydbException;
 import com.squareup.picasso.Picasso;
 
 import java.util.ArrayList;
@@ -39,10 +37,18 @@ import java.util.Locale;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+import io.github.vipinagrahari.wardrobe.model.Cloth;
+import io.github.vipinagrahari.wardrobe.model.Combo;
+import io.github.vipinagrahari.wardrobe.model.Pant;
+import io.github.vipinagrahari.wardrobe.model.Shirt;
+import io.realm.Realm;
+import io.realm.RealmResults;
+import io.realm.Sort;
 import rx.functions.Action1;
 
-import static io.github.vipinagrahari.wardrobe.Cloth.Type.PANT;
-import static io.github.vipinagrahari.wardrobe.Cloth.Type.SHIRT;
+import static io.github.vipinagrahari.wardrobe.Constants.Type.PANT;
+import static io.github.vipinagrahari.wardrobe.Constants.Type.SHIRT;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -67,16 +73,19 @@ public class MainActivity extends AppCompatActivity {
     LinearLayout llViewPager;
 
     ViewPagerAdapter pantAdapter,shirtAdapter;
-    List<Cloth> pantList,shirtList;
+    List<? extends Cloth> shirtList;
+    List<? extends Cloth> pantList;
+    Realm realm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        ButterKnife.setDebug(true);
+        Realm.init(MainActivity.this);
+        realm=Realm.getDefaultInstance();
         ButterKnife.bind(this);
-        initPager(vpPant,"pant");
-        initPager(vpShirt,"shirt");
+        initPager(PANT);
+        initPager(SHIRT);
         scheduleNotification(getNotification("Hey I am Custom Notification"));
     }
 
@@ -108,21 +117,20 @@ public class MainActivity extends AppCompatActivity {
         fab.setLayoutParams(layoutParams);
     }
 
-    private void initPager(ViewPager viewPager,String tableKey){
-        try {
-            DB snappydb = DBFactory.open(MainActivity.this,"cloths");
-            String [] keys = snappydb.findKeys(tableKey);
-            List<Cloth> clothes=new ArrayList<>();
-            for(String key:keys){
-                String uri=snappydb.get(key);
-                Cloth cloth=new Cloth();
-                cloth.setImageUri(Uri.parse(uri));
-                clothes.add(cloth);
-            }
-            viewPager.setAdapter(new ViewPagerAdapter(getSupportFragmentManager(),MainActivity.this,clothes));
-        } catch (SnappydbException e) {
-            Toast.makeText(this, "Database Error", Toast.LENGTH_SHORT).show();
+    private void initPager(Constants.Type type){
+        switch (type){
+            case SHIRT:
+                RealmResults<Shirt> shirts=realm.where(Shirt.class).findAll().sort("id", Sort.DESCENDING);
+                shirtList=realm.copyFromRealm(shirts);
+                vpShirt.setAdapter(new ViewPagerAdapter(getSupportFragmentManager(),MainActivity.this,shirtList));
+                break;
+            case PANT:
+                RealmResults<Pant> pants=realm.where(Pant.class).findAll().sort("id", Sort.DESCENDING);;
+                pantList=realm.copyFromRealm(pants);
+                vpPant.setAdapter(new ViewPagerAdapter(getSupportFragmentManager(),MainActivity.this,pantList));
+                break;
         }
+
     }
 
 
@@ -140,10 +148,26 @@ public class MainActivity extends AppCompatActivity {
         switch (view.getId()) {
             case R.id.fab_add_pant: showPickerDialog(PANT);break;
             case R.id.fab_add_shirt:showPickerDialog(SHIRT);break;
+            case R.id.fab_fav:addFavourite();
         }
     }
 
-    private void showImagePicker(Sources source,final Cloth.Type type) {
+    private void addFavourite() {
+        realm.beginTransaction();
+
+        Pant pant=realm.where(Pant.class).equalTo("id",
+                pantList.get(vpPant.getCurrentItem()).getId()).findFirst();
+        Shirt shirt=realm.where(Shirt.class).equalTo("id",
+                shirtList.get(vpShirt.getCurrentItem()).getId()).findFirst();
+        Combo combo=realm.createObject(Combo.class,pant.getId()+shirt.getId());
+        combo.setPant(pant);
+        combo.setShirt(shirt);
+        realm.commitTransaction();
+
+        Toast.makeText(this, "saved as favourite", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showImagePicker(Sources source,final Constants.Type type) {
         RxImagePicker.with(MainActivity.this).requestImage(source).subscribe(new Action1<Uri>() {
             @Override
             public void call(Uri uri) {
@@ -152,21 +176,25 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void saveToDb(Cloth.Type type,Uri uri) {
-        System.out.println(uri.toString());
-        try {
-            DB snappydb = DBFactory.open(MainActivity.this,"cloths");
-            if(type.equals(SHIRT)) snappydb.put("shirt:"+Calendar.getInstance(Locale.getDefault()).getTimeInMillis(),
-                    uri.toString());
-            else if(type.equals(PANT)) snappydb.put("pant:"+Calendar.getInstance(Locale.getDefault()).getTimeInMillis(),
-                    uri.toString());
-            snappydb.close();
-        } catch (SnappydbException e) {
-            Toast.makeText(this, "Database Error", Toast.LENGTH_SHORT).show();
+    private void saveToDb(Constants.Type type,Uri uri) {
+        realm.beginTransaction();
+        switch(type){
+            case PANT:
+                Pant pant=realm.createObject(Pant.class,Calendar.getInstance(Locale.getDefault()).getTimeInMillis());
+                pant.setImageUri(uri.toString());
+                break;
+            case SHIRT:
+                Shirt shirt=realm.createObject(Shirt.class,Calendar.getInstance(Locale.getDefault()).getTimeInMillis());
+                shirt.setImageUri(uri.toString());
+                break;
+            default:return;
         }
+        realm.commitTransaction();
+        initPager(type);
+
     }
 
-    private void showPickerDialog(final Cloth.Type type) {
+    private void showPickerDialog(final Constants.Type type) {
         final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setItems(new CharSequence[]{"Camera", "Gallery"}, new DialogInterface.OnClickListener() {
             @Override
