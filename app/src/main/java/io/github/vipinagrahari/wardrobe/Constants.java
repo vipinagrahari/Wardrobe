@@ -10,5 +10,7 @@ public class Constants {
     PANT,SHIRT;
   }
   public static final String URI ="uri" ;
+  public static final String MY_PREFS="my_prefs";
+  public static final String IS_ALARM_SCHEDULED="is_alarm_scheduled";
 
 }

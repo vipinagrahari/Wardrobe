@@ -6,10 +6,10 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.PersistableBundle;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.view.GravityCompat;
@@ -20,6 +20,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.Toast;
+import butterknife.BindString;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
@@ -39,8 +40,11 @@ import java.util.Locale;
 import java.util.Random;
 import rx.functions.Action1;
 
+import static io.github.vipinagrahari.wardrobe.Constants.IS_ALARM_SCHEDULED;
+import static io.github.vipinagrahari.wardrobe.Constants.MY_PREFS;
 import static io.github.vipinagrahari.wardrobe.Constants.Type.PANT;
 import static io.github.vipinagrahari.wardrobe.Constants.Type.SHIRT;
+import static io.github.vipinagrahari.wardrobe.NotificationPublisher.NOTIFICATION;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -57,7 +61,9 @@ public class MainActivity extends AppCompatActivity {
 
   @BindView(R.id.ll_viewpager) LinearLayout llViewPager;
 
-  ViewPagerAdapter pantAdapter, shirtAdapter;
+  @BindString(R.string.notification_content) String notificationContent;
+  @BindString(R.string.notification_title) String notificationTitle;
+
   List<? extends Cloth> shirtList;
   List<? extends Cloth> pantList;
   Realm realm;
@@ -70,9 +76,25 @@ public class MainActivity extends AppCompatActivity {
     ButterKnife.bind(this);
     initPager(PANT);
     initPager(SHIRT);
-    scheduleNotification(getNotification("Hey I am Custom Notification"));
+    if (getIntent().hasExtra(NOTIFICATION)) {
+      setRandomCombination();
+    }
+    setNotificationAlarm();
   }
 
+  private void setNotificationAlarm() {
+    SharedPreferences sharedPref = getSharedPreferences(MY_PREFS, Context.MODE_PRIVATE);
+    if (!sharedPref.contains(IS_ALARM_SCHEDULED)) {
+      scheduleNotification(getNotification(notificationTitle, notificationContent));
+      SharedPreferences.Editor editor = sharedPref.edit();
+      editor.putBoolean(IS_ALARM_SCHEDULED, true);
+      editor.apply();
+    }
+  }
+
+  /**
+   * Handles the layout changes on screen orientation change
+   */
   @Override public void onConfigurationChanged(Configuration newConfig) {
     super.onConfigurationChanged(newConfig);
     switch (newConfig.orientation) {
@@ -91,6 +113,9 @@ public class MainActivity extends AppCompatActivity {
     }
   }
 
+  /**
+   * Helper method for setting Layout Params for a FAB.
+   */
   private void setLayoutParams(FloatingActionButton fab, int anchorGravity) {
     CoordinatorLayout.LayoutParams layoutParams =
         (CoordinatorLayout.LayoutParams) fab.getLayoutParams();
@@ -98,6 +123,9 @@ public class MainActivity extends AppCompatActivity {
     fab.setLayoutParams(layoutParams);
   }
 
+  /**
+   * Initialize the viewpagers depending on the Type of viewpager
+   */
   private void initPager(Constants.Type type) {
     switch (type) {
       case SHIRT:
@@ -108,20 +136,11 @@ public class MainActivity extends AppCompatActivity {
         break;
       case PANT:
         RealmResults<Pant> pants = realm.where(Pant.class).findAll().sort("id", Sort.DESCENDING);
-        ;
         pantList = realm.copyFromRealm(pants);
         vpPant.setAdapter(
             new ViewPagerAdapter(getSupportFragmentManager(), MainActivity.this, pantList));
         break;
     }
-  }
-
-  @Override public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
-    super.onSaveInstanceState(outState, outPersistentState);
-  }
-
-  private int getOrientation() {
-    return MainActivity.this.getResources().getConfiguration().orientation;
   }
 
   @OnClick({ R.id.fab_fav, R.id.fab_add_shirt, R.id.fab_add_pant, R.id.fab_shuffle })
@@ -142,9 +161,11 @@ public class MainActivity extends AppCompatActivity {
     }
   }
 
+  /**
+   * Method to save a combination as favourite in DB
+   */
   private void addFavourite() {
     realm.beginTransaction();
-
     try {
       Pant pant = realm.where(Pant.class)
           .equalTo("id", pantList.get(vpPant.getCurrentItem()).getId())
@@ -163,6 +184,12 @@ public class MainActivity extends AppCompatActivity {
     realm.commitTransaction();
   }
 
+  /**
+   * Uses Rx Picker Library for picking Image
+   *
+   * @param source - Camera or Gallery
+   * @param type - Pant or Shirt
+   */
   private void showImagePicker(Sources source, final Constants.Type type) {
     RxImagePicker.with(MainActivity.this).requestImage(source).subscribe(new Action1<Uri>() {
       @Override public void call(Uri uri) {
@@ -172,10 +199,7 @@ public class MainActivity extends AppCompatActivity {
   }
 
   /**
-   *
-   * @param shirt
-   * @param pant
-   * @return  ID of a combination based on ID of Shirt and Pant.
+   * @return ID of a combination based on ID of Shirt and Pant.
    */
   private long getComboId(Shirt shirt, Pant pant) {
     return pant.getId() + shirt.getId();
@@ -218,27 +242,49 @@ public class MainActivity extends AppCompatActivity {
         }).show();
   }
 
+  /**
+   * Schedule Recurring Alarm which notifies Notification Publisher Class which in turn sends a
+   * local notification
+   */
   private void scheduleNotification(Notification notification) {
 
-    Intent notificationIntent = new Intent(this, NotificationPublisher.class);
-    notificationIntent.putExtra(NotificationPublisher.NOTIFICATION_ID, 1);
-    notificationIntent.putExtra(NotificationPublisher.NOTIFICATION, notification);
-    PendingIntent pendingIntent =
-        PendingIntent.getBroadcast(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+    Intent notificationPublisherIntent = new Intent(this, NotificationPublisher.class);
+    notificationPublisherIntent.putExtra(NotificationPublisher.NOTIFICATION_ID, 1);
+    notificationPublisherIntent.putExtra(NOTIFICATION, notification);
+    PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, notificationPublisherIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT);
 
     AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-    Calendar calendar = Calendar.getInstance();
-    calendar.setTimeInMillis(System.currentTimeMillis());
+    Calendar calendar = Calendar.getInstance(Locale.getDefault());
+
+    // Set Time to be 6 AM
     calendar.set(Calendar.HOUR_OF_DAY, 6);
-    alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(),
+    calendar.set(Calendar.MINUTE, 0);
+    calendar.set(Calendar.SECOND, 0);
+
+    // Make it recurring everyday
+    alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(),
         AlarmManager.INTERVAL_DAY, pendingIntent);
   }
 
-  private Notification getNotification(String content) {
+  /**
+   * @param title Title of notification
+   * @param content Content of Notification
+   * @return Notification object which will be passed to the  Intent
+   */
+  private Notification getNotification(String title, String content) {
+
+    Intent notificationIntent = new Intent(this, MainActivity.class);
+    notificationIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    notificationIntent.putExtra(NOTIFICATION, true);
+    PendingIntent pendingIntent =
+        PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
     Notification.Builder builder = new Notification.Builder(this);
-    builder.setContentTitle("Scheduled Notification");
+    builder.setContentTitle(title);
     builder.setContentText(content);
     builder.setSmallIcon(R.mipmap.ic_launcher);
+    builder.setContentIntent(pendingIntent);
     return builder.build();
   }
 
@@ -247,8 +293,7 @@ public class MainActivity extends AppCompatActivity {
    */
   private void setRandomCombination() {
     if (isNoRandomCombinationAvailable()) {
-      Toast.makeText(this, "No Random Combination Available.",
-          Toast.LENGTH_LONG).show();
+      Toast.makeText(this, "No Random Combination Available.", Toast.LENGTH_LONG).show();
       return;
     }
     Shirt randomShirt;
@@ -263,6 +308,7 @@ public class MainActivity extends AppCompatActivity {
       // Check if any Combination already exists in Favourite Database
       long count =
           realm.where(Combo.class).equalTo("id", getComboId(randomShirt, randomPant)).count();
+      System.out.println("Count" + count);
       if (count == 0) {
         // If No Combination exists in database of favourites then display the Combo else Loop again.
         vpPant.setCurrentItem(randomPantPosition);
@@ -273,14 +319,13 @@ public class MainActivity extends AppCompatActivity {
   }
 
   /**
-   * @return A random position in the list which is NOT equal to current item displayed
+   * @return A random position in the list.
    */
 
   private int getRandomItemPosition(List<? extends Cloth> clothList) {
-    if(clothList.size()<=1) return 0;
+    if (clothList.size() <= 1) return 0;
     while (true) {
-      int random = new Random().nextInt(clothList.size());
-      if (random != vpPant.getCurrentItem()) return random;
+      return new Random().nextInt(clothList.size());
     }
   }
 
